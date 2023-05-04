@@ -1,0 +1,73 @@
+version: 0.2
+env:
+  parameter-store:
+    ssh_key: id_rsa
+    ssh_pub: id_rsa.pub
+  variables:
+    SERVICE_NAME: $SERVICE_NAME
+    ENV_APP: $ENV_APP
+    AWS_REGION: $AWS_REGION
+    AWS_ACCOUNT_ID: $AWS_ACCOUNT_ID
+    CONFIG_S3_BUCKET: $CONFIG_S3_BUCKET
+    ECR_REPOSITORY: $ECR_REPOSITORY
+    AWS_SERVICE_NAME: .dkr.ecr.
+    AWS_DOMAIN_NAME: .amazonaws.com
+    git_url: "git@github.com:hyenaga/gittagging-test.git"
+    MAJOR_VERSION: “1”
+    MINOR_VERSION: “0”
+    BRANCH_NAME: “qa-release”
+phases: 
+  install:
+    runtime-versions:
+        docker: latest    
+  pre_build: 
+    commands: 
+      - "mkdir -p ~/.ssh"
+      - "echo \"$ssh_key\" > ~/.ssh/id_rsa"
+      - "echo \"$ssh_pub\" > ~/.ssh/id_rsa.pub"
+      - "chmod 600 ~/.ssh/id_rsa"
+      - "eval \"$(ssh-agent -s)\""
+      - "ssh-keygen -R github.com" 
+      - "echo \"HOST *\" > ~/.ssh/config"
+      - "echo \"StrictHostKeyChecking no\" >> ~/.ssh/config"
+      - "git clone --recurse-submodules --branch $BRANCH_NAME \"$git_url\" trial"
+      - "cd trial"
+      - "echo \"$git_url\""
+      - "git remote -v"
+      - "git branch" 
+      - "git clone --branch master \"$git_url2\" assets"
+      - "ls -l assets/a/689/img/"
+      - "rm -rf .git"
+      - aws --version
+      - REPOSITORY_URI="$AWS_ACCOUNT_ID$AWS_SERVICE_NAME$AWS_REGION$AWS_DOMAIN_NAME"
+      - echo $REPOSITORY_URI
+      - echo Logging in to Amazon ECR...
+      - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $REPOSITORY_URI
+      - aws ecr describe-repositories --repository-names $ECR_REPOSITORY || aws ecr create-repository --repository-name $ECR_REPOSITORY
+      - COMMIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-10)
+      - IMAGE_TAG=${BRANCH_NAME}-${COMMIT_HASH:=latest}
+      - echo $IMAGE_TAG
+      #- aws s3 cp s3://$CONFIG_S3_BUCKET/$ENV_REGION/$SERVICE_NAME/citus-health-integration.php ./citus-health-integration.php
+      #- aws s3 cp s3://$CONFIG_S3_BUCKET/$ENV_REGION/$SERVICE_NAME/citus-health-config.php ./citus-health-config.php
+      #- aws s3 cp s3://$CONFIG_S3_BUCKET/$ENV_REGION/$SERVICE_NAME/config.php ./config.php
+      #- aws s3 cp s3://$CONFIG_S3_BUCKET/$ENV_REGION/$SERVICE_NAME/machform-constants.php ./machform-constants.php
+      #- aws s3 cp s3://$CONFIG_S3_BUCKET/$ENV_REGION/$SERVICE_NAME/devl-config.values.js ./devl-config.values.js
+      #- aws s3 cp s3://$CONFIG_S3_BUCKET/$ENV_REGION/$SERVICE_NAME/db-config.php ./db-config.php
+      #- aws s3 cp s3://$CONFIG_S3_BUCKET/$ENV_REGION/$SERVICE_NAME/.htpasstokenauth ./admin-qa5/etc/nginx/.htpasstokenauth
+      #- aws s3 cp s3://$CONFIG_S3_BUCKET/$ENV_REGION/$SERVICE_NAME/.htpasswdnelcuat ./usprod-conf/etc/nginx/.htpasswdnelcuat
+      #- aws s3 cp s3://$CONFIG_S3_BUCKET/$ENV_REGION/$SERVICE_NAME/.htpasstokenauth ./usprod-conf/etc/nginx/.htpasstokenauth
+      #- aws s3 cp s3://$CONFIG_S3_BUCKET/$ENV_REGION/$SERVICE_NAME/.htpasswdapifci ./usprod-conf/etc/nginx/.htpasswdapifci
+      #- aws s3 cp s3://$CONFIG_S3_BUCKET/$ENV_REGION/$SERVICE_NAME/.htpasswdeversanaapi ./usprod-conf/etc/nginx/.htpasswdeversanaapi
+      #- aws s3 cp s3://$CONFIG_S3_BUCKET/$ENV_REGION/$SERVICE_NAME/.htpasswdevents ./usprod-conf/etc/nginx/.htpasswdevents
+      #- aws s3 cp s3://$CONFIG_S3_BUCKET/$ENV_REGION/$SERVICE_NAME/.htpasswdwebhook ./usprod-conf/etc/nginx/.htpasswdwebhook
+
+  build: 
+    commands: 
+    - echo Build started on `date` 
+    - echo Building the Docker image... 
+    # update the following line with the name of your own ECR repository
+    #- docker build -t $REPOSITORY_URI/$ECR_REPOSITORY:$IMAGE_TAG -f './Dockerfile-usprod' .
+    - docker build -t $REPOSITORY_URI/$ECR_REPOSITORY:$IMAGE_TAG -f $DOCKER_FILE_NAME .
+    - bash git_taging.sh
+
+ 
