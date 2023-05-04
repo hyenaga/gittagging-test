@@ -1,0 +1,42 @@
+version: 0.2
+
+env:
+  parameter-store:
+    ssh_key: id_rsa
+    ssh_pub: id_rsa.pub
+  variables:
+    git_url: "git@github.com:CitusHealth/citus-health-ui-mobile-all.git"
+phases:
+  build:
+    commands:
+      - "echo 'there is no build required for this projects'"      
+  pre_build:
+    commands:
+      - "cat /etc/*release"  
+      - "echo \"$CODEBUILD_GIT_BRANCH\""
+      - "echo \"$CODEBUILD_GIT_TAG\""
+      - "mkdir -p ~/.ssh"
+      - "echo \"$ssh_key\" > ~/.ssh/id_rsa"
+      - "echo \"$ssh_pub\" > ~/.ssh/id_rsa.pub"
+      - "chmod 600 ~/.ssh/id_rsa"
+      - "eval \"$(ssh-agent -s)\""
+      - "git clone --recurse-submodules \"$git_url\" mobile"
+      - "cd mobile"
+      - "echo \"$git_url\""
+      - "git remote -v"
+      - "git branch"
+      - "git checkout -f \"$CODEBUILD_RESOLVED_SOURCE_VERSION\""
+      - "echo \"$CODEBUILD_RESOLVED_SOURCE_VERSION\""
+  post_build:
+    commands:
+      - "zip -r -q \"$CODEBUILD_RESOLVED_SOURCE_VERSION\".zip ."
+      - "ls *.zip"
+      - "aws s3 ls"  
+      - "aws s3 cp *.zip s3://citushealth-build-artifacts/mobile/"
+#      - "aws s3 sync \"$CODEBUILD_RESOLVED_SOURCE_VERSION\".zip s3://citushealth-build-artifacts/desktop/"
+artifacts:
+  files:
+    - '*.zip'
+    - 'appspec.yml'
+    - 'script/*'
+  base-directory: '$CODEBUILD_SRC_DIR/mobile'
